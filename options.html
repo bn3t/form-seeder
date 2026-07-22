@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Form Seeder — Options</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      font-size: 14px;
+      color: #1a1a1a;
+      background: #fafafa;
+      margin: 0;
+      padding: 20px;
+      max-width: 900px;
+    }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    .subtitle { color: #666; margin-bottom: 16px; }
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .toolbar .spacer { flex: 1; }
+    button {
+      padding: 6px 14px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      background: #fff;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    button:hover { background: #f0f0f0; }
+    button.primary {
+      background: #1a73e8;
+      border-color: #1a73e8;
+      color: #fff;
+    }
+    button.primary:hover { background: #1765c9; }
+    button.primary:disabled {
+      background: #9bbdf0;
+      border-color: #9bbdf0;
+      cursor: not-allowed;
+    }
+    button.danger { color: #b00020; }
+    button.small { padding: 3px 9px; font-size: 12px; }
+    .view-toggle button.active {
+      background: #e8f0fe;
+      border-color: #4285f4;
+      font-weight: 600;
+    }
+    .matcher-card {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+    /* Two-pane form editor: rule list on the left, selected rule on the right. */
+    .editor { display: flex; gap: 16px; align-items: flex-start; }
+    .rule-list-pane {
+      width: 240px;
+      flex: none;
+      position: sticky;
+      top: 20px;
+    }
+    #ruleFilter {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 5px 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
+    #ruleList {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      overflow: hidden auto;
+      max-height: 65vh;
+      margin-bottom: 8px;
+    }
+    .rule-item {
+      padding: 7px 10px;
+      border-bottom: 1px solid #eee;
+      cursor: pointer;
+    }
+    .rule-item:last-child { border-bottom: none; }
+    .rule-item:hover { background: #f5f5f5; }
+    .rule-item.selected {
+      background: #e8f0fe;
+      box-shadow: inset 3px 0 0 #1a73e8;
+    }
+    .rule-item .rule-name {
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .rule-item .rule-meta { color: #888; font-size: 12px; }
+    .placeholder { color: #888; padding: 10px 2px; }
+    #ruleDetail { flex: 1; min-width: 0; }
+    .profile-header .toggle {
+      flex: none;
+      width: 24px;
+      padding: 3px 0;
+      font-size: 11px;
+      color: #666;
+    }
+    .profile-card.collapsed .profile-body { display: none; }
+    .profiles-label { display: flex; align-items: center; gap: 6px; }
+    .profiles-label .spacer { flex: 1; }
+    .matcher-header, .profile-header {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .matcher-header input[type=text] { font-weight: 600; }
+    input[type=text] {
+      padding: 5px 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 13px;
+      flex: 1;
+    }
+    .section-label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #888;
+      margin: 10px 0 4px;
+    }
+    .row {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 5px;
+      align-items: center;
+    }
+    .profile-card {
+      border: 1px solid #e5e5e5;
+      border-radius: 6px;
+      padding: 10px;
+      margin-bottom: 8px;
+      background: #fcfcfc;
+    }
+    .field-row input.selector { flex: 2; font-family: monospace; }
+    .field-row input.value { flex: 3; }
+    #yamlView { display: none; }
+    #yamlText {
+      width: 100%;
+      min-height: 420px;
+      box-sizing: border-box;
+      font-family: monospace;
+      font-size: 13px;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      resize: vertical;
+    }
+    .message {
+      margin: 10px 0;
+      padding: 8px 12px;
+      border-radius: 6px;
+      white-space: pre-wrap;
+      display: none;
+    }
+    .message.error { background: #fdecea; color: #b00020; display: block; }
+    .message.success { background: #e6f4ea; color: #1e7e34; display: block; }
+    .help {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 14px 18px;
+      margin-top: 24px;
+      color: #444;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    .help h2 { font-size: 15px; margin: 0 0 8px; }
+    .help code {
+      background: #f2f2f2;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 12px;
+    }
+    .help ul { margin: 6px 0; padding-left: 20px; }
+  </style>
+</head>
+<body>
+  <h1>Form Seeder</h1>
+  <div class="subtitle">Named test-data profiles mapped to forms via CSS selectors and URL glob patterns.</div>
+
+  <div class="toolbar">
+    <span class="view-toggle">
+      <button id="btnFormView" class="active">Form editor</button>
+      <button id="btnYamlView">Raw YAML</button>
+    </span>
+    <span class="spacer"></span>
+    <button id="btnExport">Export .yaml</button>
+    <button id="btnImport">Import .yaml</button>
+    <input type="file" id="importFile" accept=".yaml,.yml,text/yaml" style="display:none">
+    <button id="btnValidate">Validate</button>
+    <button id="btnSave" class="primary">Save</button>
+  </div>
+
+  <div id="message" class="message"></div>
+
+  <div id="formView">
+    <div class="editor">
+      <aside class="rule-list-pane">
+        <input type="search" id="ruleFilter" placeholder="Filter rules…" spellcheck="false">
+        <div id="ruleList"></div>
+        <button id="btnAddMatcher" class="small">+ Add rule</button>
+      </aside>
+      <section id="ruleDetail"></section>
+    </div>
+  </div>
+
+  <div id="yamlView">
+    <textarea id="yamlText" spellcheck="false"></textarea>
+  </div>
+
+  <div class="help">
+    <h2>URL pattern help</h2>
+    <ul>
+      <li>Patterns are globs: <code>*</code> matches any text <strong>including <code>/</code></strong>.
+        <code>https://myapp.be/users/*</code> also matches <code>/users/new/confirm</code>.</li>
+      <li>Patterns must match the whole URL (they are anchored), e.g.
+        <code>https://*.myapp.be/billing/*</code>.</li>
+      <li>The <code>#fragment</code> is ignored. If a pattern has no <code>?</code>, any query string
+        is accepted (<code>.../users/new</code> matches <code>.../users/new?ref=admin</code>).
+        A pattern containing <code>?</code> is matched literally against the full URL.</li>
+      <li>Trailing slashes are ignored: <code>/users/new</code> ≡ <code>/users/new/</code>.</li>
+      <li><strong>Page selector</strong> (optional): when the URL alone doesn't identify the page,
+        add a CSS selector (e.g. <code>form#user-create</code>). The matcher is then only active
+        when the URL matches <em>and</em> that selector exists in the page's DOM, checked when
+        the popup opens. Use a broad URL pattern like <code>https://local.myapp.dev/*</code> and
+        let the page selector do the discrimination.</li>
+    </ul>
+    <h2>Field values</h2>
+    <ul>
+      <li>Checkbox/radio: value <code>"true"</code> or <code>"1"</code> checks, anything else unchecks.
+        Target a specific radio with e.g. <code>input[name=gender][value=f]</code> and value <code>"true"</code>.</li>
+      <li><code>&lt;select&gt;</code>: the value must equal an option's <code>value</code> attribute,
+        not its visible text.</li>
+      <li>Date/time inputs need exact formats: date <code>yyyy-mm-dd</code>, time <code>HH:MM</code>,
+        datetime-local <code>yyyy-mm-ddTHH:MM</code>. Wrong format leaves the field empty (browser behavior).</li>
+      <li>Only the first element matching a selector is filled. Selectors that match nothing are
+        skipped and reported after filling.</li>
+    </ul>
+  </div>
+
+  <script src="vendor/js-yaml.min.js"></script>
+  <script src="lib/config.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

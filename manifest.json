@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "Form Seeder",
+  "version": "1.0.0",
+  "description": "Fill web forms with named test data sets, mapped via CSS selectors and URL glob patterns (YAML config).",
+  "permissions": ["storage", "scripting", "activeTab"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Form Seeder"
+  },
+  "options_page": "options.html",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      font-size: 13px;
+      min-width: 280px;
+      max-width: 360px;
+      margin: 0;
+      padding: 12px;
+      color: #1a1a1a;
+      background: #fff;
+    }
+    h1 {
+      font-size: 14px;
+      margin: 0 0 10px;
+    }
+    .matcher {
+      margin-bottom: 12px;
+    }
+    .matcher-name {
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: #333;
+    }
+    button.profile {
+      display: block;
+      width: 100%;
+      text-align: left;
+      margin-bottom: 4px;
+      padding: 7px 10px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      background: #f7f7f7;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    button.profile:hover {
+      background: #e8f0fe;
+      border-color: #4285f4;
+    }
+    .empty, .error {
+      color: #666;
+      margin: 8px 0;
+    }
+    .error {
+      color: #b00020;
+      white-space: pre-wrap;
+    }
+    .status {
+      margin-top: 8px;
+      padding: 6px 8px;
+      border-radius: 4px;
+      background: #e6f4ea;
+      color: #1e7e34;
+      display: none;
+    }
+    .status.warn {
+      background: #fef7e0;
+      color: #8a6d00;
+    }
+    a {
+      color: #1a73e8;
+    }
+    .footer {
+      margin-top: 10px;
+      border-top: 1px solid #eee;
+      padding-top: 8px;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Form Seeder</h1>
+  <div id="content"><div class="empty">Loading…</div></div>
+  <div id="status" class="status"></div>
+  <div class="footer"><a href="#" id="openOptions">Open options</a></div>
+  <script src="vendor/js-yaml.min.js"></script>
+  <script src="lib/config.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
