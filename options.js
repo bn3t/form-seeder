@@ -15,12 +15,51 @@ let currentView = "form"; // "form" | "yaml"
 /*
  * Form view is a two-pane editor: the rule list (filtered) selects one matcher,
  * only that one is rendered in the detail pane. `collapsedProfiles` holds the
- * indices of the collapsed profile cards of the *selected* matcher; it is reset
- * whenever the selection changes.
+ * indices of the collapsed profile cards of the *selected* matcher; it is
+ * re-resolved from the persisted UI state below whenever the selection changes.
  */
 let selectedIndex = 0;
 let ruleFilterText = "";
 let collapsedProfiles = new Set();
+
+/*
+ * Editor UI state — selected rule, filter text, collapsed profile cards — is
+ * persisted next to the config under its own storage key, so it survives view
+ * switches and reloads. It is keyed by *name* (rule name → profile names), not
+ * by index, so it stays attached to the right cards across reordering and raw
+ * YAML edits. Rules (or profiles) sharing a name share collapse state.
+ */
+const UI_STATE_KEY = "editorUiState";
+let uiState = { selectedRule: "", filter: "", collapsed: {} };
+let uiSaveTimer = null;
+
+/** Persist `uiState`, debounced — handlers fire on every keystroke. */
+function saveUiState() {
+  clearTimeout(uiSaveTimer);
+  uiSaveTimer = setTimeout(() => {
+    chrome.storage.local.set({ [UI_STATE_KEY]: uiState });
+  }, 200);
+}
+
+/** Stored collapse state of a matcher, resolved to current profile indices. */
+function collapsedFor(matcher) {
+  const names = uiState.collapsed[matcher.name] || [];
+  const set = new Set();
+  matcher.profiles.forEach((profile, i) => {
+    if (names.includes(profile.name)) set.add(i);
+  });
+  return set;
+}
+
+/** Write `collapsedProfiles` back into `uiState` as profile names. */
+function persistCollapsed(matcher) {
+  const names = matcher.profiles
+    .filter((_, i) => collapsedProfiles.has(i))
+    .map((profile) => profile.name);
+  if (names.length === 0) delete uiState.collapsed[matcher.name];
+  else uiState.collapsed[matcher.name] = names;
+  saveUiState();
+}
 
 const formView = document.getElementById("formView");
 const yamlView = document.getElementById("yamlView");
@@ -90,15 +129,22 @@ function parseAndValidate(yaml) {
 function render() {
   if (selectedIndex >= state.matchers.length) selectedIndex = state.matchers.length - 1;
   if (selectedIndex < 0) selectedIndex = 0;
+  // Collapse state is re-resolved from storage on every full render; toggles
+  // persist immediately, so this never loses a pending change.
+  const matcher = state.matchers[selectedIndex];
+  collapsedProfiles = matcher ? collapsedFor(matcher) : new Set();
+  if (matcher) {
+    uiState.selectedRule = matcher.name;
+    saveUiState();
+  }
   renderList();
   renderDetail();
 }
 
-/** Select a matcher by index; profile collapse state is per selection. */
+/** Select a matcher by index; its stored collapse state comes along. */
 function selectMatcher(index) {
   if (index === selectedIndex) return;
   selectedIndex = index;
-  collapsedProfiles = new Set();
   render();
 }
 
@@ -114,12 +160,27 @@ function matcherMatchesFilter(matcher, needle) {
   return haystack.includes(needle);
 }
 
+/**
+ * Rule list order, as [matcher, realIndex] pairs: alphabetical by name,
+ * case-insensitive, unnamed rules last. Display only — `state.matchers` keeps
+ * the config's own order, so saving never reshuffles the YAML.
+ */
+function listOrder() {
+  return state.matchers
+    .map((matcher, mi) => [matcher, mi])
+    .sort(([a], [b]) => {
+      const an = a.name.trim(), bn = b.name.trim();
+      if (an === "" || bn === "") return (an === "" ? 1 : 0) - (bn === "" ? 1 : 0);
+      return an.localeCompare(bn, undefined, { sensitivity: "base" });
+    });
+}
+
 function renderList() {
   ruleList.innerHTML = "";
   const needle = ruleFilterText.trim().toLowerCase();
   let shown = 0;
 
-  state.matchers.forEach((matcher, mi) => {
+  listOrder().forEach(([matcher, mi]) => {
     if (!matcherMatchesFilter(matcher, needle)) return;
     shown += 1;
 
@@ -169,10 +230,20 @@ function renderDetail() {
   const header = document.createElement("div");
   header.className = "matcher-header";
   header.appendChild(textInput(matcher.name, "Rule name (e.g. User creation form)",
-    (v) => { matcher.name = v; renderList(); }));
+    (v) => {
+      // Collapse state is keyed by rule name — carry it over to the new one.
+      const entry = uiState.collapsed[matcher.name];
+      delete uiState.collapsed[matcher.name];
+      if (entry) uiState.collapsed[v] = entry;
+      matcher.name = v;
+      uiState.selectedRule = v;
+      saveUiState();
+      renderList();
+    }));
   header.appendChild(smallButton("Delete rule", "danger", () => {
+    delete uiState.collapsed[matcher.name];
     state.matchers.splice(selectedIndex, 1);
-    collapsedProfiles = new Set();
+    saveUiState();
     render();
   }));
   card.appendChild(header);
@@ -211,10 +282,12 @@ function renderDetail() {
   profilesLabel.appendChild(spacer);
   profilesLabel.appendChild(smallButton("Expand all", "", () => {
     collapsedProfiles = new Set();
+    persistCollapsed(matcher);
     renderDetail();
   }));
   profilesLabel.appendChild(smallButton("Collapse all", "", () => {
     collapsedProfiles = new Set(matcher.profiles.map((_, i) => i));
+    persistCollapsed(matcher);
     renderDetail();
   }));
   card.appendChild(profilesLabel);
@@ -229,10 +302,15 @@ function renderDetail() {
     pHeader.appendChild(smallButton(collapsed ? "▸" : "▾", "toggle", () => {
       if (collapsed) collapsedProfiles.delete(pri);
       else collapsedProfiles.add(pri);
+      persistCollapsed(matcher);
       renderDetail();
     }));
     pHeader.appendChild(textInput(profile.name, "Profile name (e.g. Test user 1)",
-      (v) => { profile.name = v; renderList(); }));
+      (v) => {
+        profile.name = v;
+        persistCollapsed(matcher); // stored under the profile's name
+        renderList();
+      }));
     if (collapsed) {
       const count = document.createElement("span");
       count.className = "rule-meta";
@@ -240,8 +318,10 @@ function renderDetail() {
       pHeader.appendChild(count);
     }
     pHeader.appendChild(smallButton("Delete profile", "danger", () => {
+      // Persist by name *before* splicing — indices shift underneath us.
+      collapsedProfiles.delete(pri);
+      persistCollapsed(matcher);
       matcher.profiles.splice(pri, 1);
-      collapsedProfiles = new Set();
       render();
     }));
     pCard.appendChild(pHeader);
@@ -329,8 +409,7 @@ function switchToForm() {
     return;
   }
   state = result.config;
-  selectedIndex = 0;
-  collapsedProfiles = new Set();
+  restoreSelection();
   render();
   currentView = "form";
   yamlView.style.display = "none";
@@ -409,15 +488,17 @@ function importYaml(file) {
 
 ruleFilter.addEventListener("input", () => {
   ruleFilterText = ruleFilter.value;
+  uiState.filter = ruleFilterText;
+  saveUiState();
   renderList();
 });
 document.getElementById("btnAddMatcher").addEventListener("click", () => {
   // A fresh rule has no name, so it would be hidden by an active filter.
   ruleFilter.value = "";
   ruleFilterText = "";
+  uiState.filter = "";
   state.matchers.push(newMatcher());
   selectedIndex = state.matchers.length - 1;
-  collapsedProfiles = new Set();
   render();
 });
 btnFormView.addEventListener("click", switchToForm);
@@ -439,12 +520,29 @@ yamlText.addEventListener("blur", () => {
 
 // ---------- init ----------
 
+/** Point `selectedIndex` at the remembered rule name, or fall back to the first. */
+function restoreSelection() {
+  const i = state.matchers.findIndex((m) => m.name === uiState.selectedRule);
+  selectedIndex = i === -1 ? 0 : i;
+}
+
 async function init() {
-  const stored = await chrome.storage.local.get(STORAGE_KEY);
+  const stored = await chrome.storage.local.get([STORAGE_KEY, UI_STATE_KEY]);
+  const savedUi = stored[UI_STATE_KEY];
+  if (savedUi && typeof savedUi === "object") {
+    uiState = {
+      selectedRule: typeof savedUi.selectedRule === "string" ? savedUi.selectedRule : "",
+      filter: typeof savedUi.filter === "string" ? savedUi.filter : "",
+      collapsed: savedUi.collapsed && typeof savedUi.collapsed === "object" ? savedUi.collapsed : {},
+    };
+    ruleFilterText = uiState.filter;
+    ruleFilter.value = uiState.filter;
+  }
   const yaml = typeof stored[STORAGE_KEY] === "string" ? stored[STORAGE_KEY] : DEFAULT_YAML;
   const result = parseAndValidate(yaml);
   if (result.ok) {
     state = result.config;
+    restoreSelection();
     render();
   } else {
     // Stored config is broken: open in raw view so the user can repair it
