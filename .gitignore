@@ -1,0 +1,19 @@
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*~
+
+# Node (not used by the extension itself, but tooling may appear)
+node_modules/
+
+# Packaged extension / local exports
+*.zip
+*.crx
+*.pem
+*.local.yaml
+*.local.yml
