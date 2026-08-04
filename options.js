@@ -335,8 +335,24 @@ function renderDetail() {
       sel.classList.add("selector");
       const val = textInput(field.value, "Value", (v) => { field.value = v; });
       val.classList.add("value");
+      // Blank means "use the default" — keep the key out of the YAML entirely.
+      const wait = textInput(
+        field.waitMs === undefined ? "" : String(field.waitMs),
+        String(DEFAULT_WAIT_MS),
+        (v) => {
+          const text = v.trim();
+          if (text === "") { delete field.waitMs; return; }
+          // Keep it a number so the YAML view stays unquoted; anything else is
+          // handed to the validator as typed, which reports it.
+          const n = Number(text);
+          field.waitMs = Number.isInteger(n) ? n : text;
+        }
+      );
+      wait.classList.add("wait");
+      wait.title = "Wait for this selector, in ms (blank = " + DEFAULT_WAIT_MS + ")";
       row.appendChild(sel);
       row.appendChild(val);
+      row.appendChild(wait);
       row.appendChild(smallButton("✕", "danger", () => {
         profile.fields.splice(fi, 1);
         renderDetail();

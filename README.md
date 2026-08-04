@@ -63,6 +63,7 @@ matchers:
 | `fields` | profile | yes | List of `{selector, value}` (may be empty) |
 | `selector` | field | yes | Any CSS selector valid for `querySelector` |
 | `value` | field | yes | Scalar — string, number or boolean, coerced to string |
+| `waitMs` | field | no | Poll budget for this selector, in ms (default 300, max 60000) |
 
 Multiple rules may match the same page; the popup shows all of them, each with
 its own set of profile buttons.
@@ -138,9 +139,23 @@ matchers:
 
 Fields are filled top to bottom, and an earlier field may reveal a later one
 (picking a type unlocks an extra input). Each selector is polled for a short
-window (~300 ms) before being given up on, so order dependent fields naturally.
-That budget is also what a *wrong* selector costs before it is reported as
-skipped — hence it stays short.
+window (300 ms by default) before being given up on, so order dependent fields
+naturally. That budget is also what a *wrong* selector costs before it is
+reported as skipped — hence the default stays short.
+
+When something genuinely takes longer to appear — a panel rendered after a
+server round-trip, an animated dialog — give that one field its own budget with
+`waitMs` rather than slowing every selector down:
+
+```yaml
+- selector: 'textarea[data-cy="justificationInput"]'
+  value: "Doute sur la validité du C4."
+  waitMs: 2000
+```
+
+`waitMs` is a whole number of milliseconds, 0 to 60000. In the form editor it is
+the narrow third box on the field row; leave it blank for the default. For a
+`mat-select` the same budget also covers the option panel opening.
 
 ## Validating and sharing rules
 

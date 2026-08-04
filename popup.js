@@ -12,12 +12,15 @@ async function fillForm(fields) {
   // a change-detection cycle plus a render (a frame or two) before it lands in
   // the DOM, so poll briefly instead of giving up on the first miss. A wrong
   // selector costs this whole budget before it is reported as skipped, which
-  // is why it stays short.
-  const WAIT_MS = 300;
+  // is why the default stays short — a field that waits on something genuinely
+  // slow (a panel appearing after a server round-trip) sets its own `waitMs`.
+  // Mirrors DEFAULT_WAIT_MS in lib/config.js, which this injected function
+  // cannot reach.
+  const DEFAULT_WAIT_MS = 300;
   const POLL_MS = 25;
 
-  async function waitFor(produce) {
-    const deadline = performance.now() + WAIT_MS;
+  async function waitFor(produce, waitMs = DEFAULT_WAIT_MS) {
+    const deadline = performance.now() + waitMs;
     for (;;) {
       const value = produce();
       if (value) return value;
@@ -26,8 +29,8 @@ async function fillForm(fields) {
     }
   }
 
-  function waitForElement(selector) {
-    return waitFor(() => document.querySelector(selector));
+  function waitForElement(selector, waitMs) {
+    return waitFor(() => document.querySelector(selector), waitMs);
   }
 
   /**
@@ -37,7 +40,7 @@ async function fillForm(fields) {
    * open the panel, click the option whose label matches. Matching is on
    * visible text because the option's real value never reaches the DOM.
    */
-  async function selectMatOption(select, value) {
+  async function selectMatOption(select, value, waitMs) {
     const wanted = value.trim().toLowerCase();
 
     // The panel is a sibling of the app root, not a descendant of the select,
@@ -59,7 +62,8 @@ async function fillForm(fields) {
       (select.querySelector(".mat-mdc-select-trigger") || select).click();
     }
 
-    const options = await waitFor(optionsOf);
+    // The panel is a render too, so it gets the same budget as the element.
+    const options = await waitFor(optionsOf, waitMs);
     if (!options) return false;
 
     const match = options.find(
@@ -93,10 +97,10 @@ async function fillForm(fields) {
   const checkedSetter =
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "checked")?.set;
 
-  for (const { selector, value } of fields) {
+  for (const { selector, value, waitMs } of fields) {
     let element;
     try {
-      element = await waitForElement(selector);
+      element = await waitForElement(selector, waitMs);
     } catch (e) {
       console.warn("Form Seeder: invalid selector", selector, e);
       summary.skipped.push(selector);
@@ -109,7 +113,7 @@ async function fillForm(fields) {
     }
 
     if (element.tagName === "MAT-SELECT") {
-      if (!(await selectMatOption(element, value))) {
+      if (!(await selectMatOption(element, value, waitMs))) {
         summary.skipped.push(selector);
         continue;
       }
