@@ -307,6 +307,11 @@ function renderDetail() {
     }));
     pHeader.appendChild(textInput(profile.name, "Profile name (e.g. Test user 1)",
       (v) => {
+        // Children point at the parent by name — carry them over, or they'd
+        // dangle the moment the name changes.
+        matcher.profiles.forEach((other) => {
+          if (other !== profile && other.extends === profile.name) other.extends = v;
+        });
         profile.name = v;
         persistCollapsed(matcher); // stored under the profile's name
         renderList();
@@ -314,13 +319,16 @@ function renderDetail() {
     if (collapsed) {
       const count = document.createElement("span");
       count.className = "rule-meta";
-      count.textContent = plural(profile.fields.length, "field");
+      count.textContent = plural(resolveProfileFields(matcher, profile).length, "field");
       pHeader.appendChild(count);
     }
     pHeader.appendChild(smallButton("Delete profile", "danger", () => {
       // Persist by name *before* splicing — indices shift underneath us.
       collapsedProfiles.delete(pri);
       persistCollapsed(matcher);
+      matcher.profiles.forEach((other) => {
+        if (other !== profile && other.extends === profile.name) delete other.extends;
+      });
       matcher.profiles.splice(pri, 1);
       render();
     }));
@@ -328,9 +336,65 @@ function renderDetail() {
 
     const body = document.createElement("div");
     body.className = "profile-body";
+
+    const parent = profile.extends === undefined
+      ? null
+      : matcher.profiles.find((p) => p.name === profile.extends);
+    const inherited = parent ? resolveProfileFields(matcher, parent) : [];
+
+    const extendsRow = document.createElement("div");
+    extendsRow.className = "row extends-row";
+    const extendsLabel = document.createElement("span");
+    extendsLabel.className = "rule-meta";
+    extendsLabel.textContent = "Extends";
+    extendsRow.appendChild(extendsLabel);
+    extendsRow.appendChild(extendsSelect(matcher, profile));
+    body.appendChild(extendsRow);
+
+    // Inherited fields the profile has not touched: read-only, with the two
+    // things you can do to them from here.
+    inherited.forEach((field) => {
+      if (profile.fields.some((own) => own.selector === field.selector)) return;
+      const row = document.createElement("div");
+      row.className = "row field-row inherited";
+      row.appendChild(readOnlyInput(field.selector, "selector"));
+      row.appendChild(readOnlyInput(field.value, "value"));
+      row.appendChild(readOnlyInput(
+        field.waitMs === undefined ? "" : String(field.waitMs), "wait"));
+      row.appendChild(smallButton("Override", "", () => {
+        const copy = { selector: field.selector, value: field.value };
+        if (field.waitMs !== undefined) copy.waitMs = field.waitMs;
+        profile.fields.push(copy);
+        renderDetail();
+      }));
+      row.appendChild(smallButton("✕", "danger", () => {
+        profile.fields.push({ selector: field.selector, value: null });
+        renderDetail();
+      }));
+      row.title = "Inherited from '" + profile.extends + "'";
+      body.appendChild(row);
+    });
+
     profile.fields.forEach((field, fi) => {
       const row = document.createElement("div");
       row.className = "row field-row";
+
+      // A tombstone: the field exists only to drop an inherited one.
+      if (field.value === null) {
+        row.classList.add("removed");
+        row.appendChild(readOnlyInput(field.selector, "selector"));
+        const note = document.createElement("span");
+        note.className = "rule-meta value";
+        note.textContent = "removed from '" + profile.extends + "'";
+        row.appendChild(note);
+        row.appendChild(smallButton("↺", "", () => {
+          profile.fields.splice(fi, 1);
+          renderDetail();
+        }));
+        body.appendChild(row);
+        return;
+      }
+
       const sel = textInput(field.selector, "#firstName", (v) => { field.selector = v; });
       sel.classList.add("selector");
       const val = textInput(field.value, "Value", (v) => { field.value = v; });
@@ -353,10 +417,21 @@ function renderDetail() {
       row.appendChild(sel);
       row.appendChild(val);
       row.appendChild(wait);
-      row.appendChild(smallButton("✕", "danger", () => {
+      const overrides = inherited.some((f) => f.selector === field.selector);
+      if (overrides) {
+        const tag = document.createElement("span");
+        tag.className = "tag";
+        tag.textContent = "override";
+        tag.title = "Replaces the field of the same selector inherited from '" +
+          profile.extends + "'";
+        row.appendChild(tag);
+      }
+      const remove = smallButton("✕", "danger", () => {
         profile.fields.splice(fi, 1);
         renderDetail();
-      }));
+      });
+      if (overrides) remove.title = "Drop the override and go back to the inherited value";
+      row.appendChild(remove);
       body.appendChild(row);
     });
     body.appendChild(smallButton("+ Add field", "", () => {
@@ -386,6 +461,72 @@ function textInput(value, placeholder, onInput) {
   input.placeholder = placeholder;
   input.addEventListener("input", () => onInput(input.value));
   return input;
+}
+
+function readOnlyInput(value, extraClass) {
+  const input = document.createElement("input");
+  input.type = "text";
+  input.value = value;
+  input.readOnly = true;
+  input.classList.add(extraClass);
+  return input;
+}
+
+/**
+ * Profiles this one may extend: same matcher, named, unambiguous, and not
+ * already inheriting from it (that would be a cycle the validator rejects).
+ * A parent that is already set but no longer valid is kept as an option so the
+ * broken reference stays visible instead of silently reassigning itself.
+ */
+function extendsCandidates(matcher, profile) {
+  return matcher.profiles.filter((other) => {
+    if (other === profile) return false;
+    if (other.name.trim() === "") return false;
+    if (matcher.profiles.filter((p) => p.name === other.name).length > 1) return false;
+    let current = other;
+    const seen = new Set();
+    while (current && current.extends !== undefined) {
+      if (current.extends === profile.name) return false;
+      if (seen.has(current.name)) break;
+      seen.add(current.name);
+      current = matcher.profiles.find((p) => p.name === current.extends);
+    }
+    return true;
+  });
+}
+
+function extendsSelect(matcher, profile) {
+  const select = document.createElement("select");
+  select.className = "extends-select";
+
+  const none = document.createElement("option");
+  none.value = "";
+  none.textContent = "(nothing — standalone profile)";
+  select.appendChild(none);
+
+  const names = extendsCandidates(matcher, profile).map((p) => p.name);
+  if (profile.extends !== undefined && !names.includes(profile.extends)) {
+    names.push(profile.extends); // dangling or cyclic — show it, let Validate complain
+  }
+  names.forEach((name) => {
+    const option = document.createElement("option");
+    option.value = name;
+    option.textContent = name;
+    select.appendChild(option);
+  });
+
+  select.value = profile.extends === undefined ? "" : profile.extends;
+  select.addEventListener("change", () => {
+    if (select.value === "") {
+      delete profile.extends;
+      // Tombstones only mean anything against a parent.
+      profile.fields = profile.fields.filter((f) => f.value !== null);
+    } else {
+      profile.extends = select.value;
+    }
+    renderDetail();
+  });
+  return select;
 }
 
 function smallButton(label, extraClass, onClick) {

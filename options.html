@@ -154,6 +154,36 @@
       box-sizing: border-box;
       text-align: right;
     }
+    .field-row.inherited input,
+    .field-row.removed input {
+      background: #f3f3f3;
+      color: #777;
+    }
+    .field-row span.value { flex: 3; font-style: italic; }
+    .field-row .tag {
+      flex: none;
+      font-size: 11px;
+      color: #1a73e8;
+      background: #e8f0fe;
+      border-radius: 3px;
+      padding: 2px 6px;
+    }
+    .extends-row { margin-bottom: 8px; }
+    .extends-row .rule-meta {
+      flex: none;
+      color: #888;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .extends-select {
+      flex: 1;
+      padding: 4px 6px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 13px;
+      background: #fff;
+    }
     #yamlView { display: none; }
     #yamlText {
       width: 100%;
@@ -245,6 +275,17 @@
         when the URL matches <em>and</em> that selector exists in the page's DOM, checked when
         the popup opens. Use a broad URL pattern like <code>https://local.myapp.dev/*</code> and
         let the page selector do the discrimination.</li>
+    </ul>
+    <h2>Profile inheritance</h2>
+    <ul>
+      <li><code>Extends</code> makes a profile start from another profile <strong>of the same
+        rule</strong>, so a variant only spells out what differs. Chains are allowed; loops and
+        missing parents are reported by <strong>Validate</strong>.</li>
+      <li>A field with the same selector as an inherited one <strong>replaces it in place</strong>
+        (fill order is preserved); a new selector is appended after the inherited ones.</li>
+      <li>Use <strong>Override</strong> on an inherited row to copy it down and edit it, or
+        <strong>✕</strong> to drop it from this profile (written as <code>value: null</code> in
+        the YAML).</li>
     </ul>
     <h2>Field values</h2>
     <ul>

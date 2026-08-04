@@ -261,19 +261,22 @@ async function init() {
       const button = document.createElement("button");
       button.className = "profile";
       button.textContent = profile.name;
-      button.addEventListener("click", () => fill(tab.id, profile));
+      // Inheritance is flattened here, so the injected fillForm only ever sees
+      // a plain field list.
+      const fields = resolveProfileFields(matcher, profile);
+      button.addEventListener("click", () => fill(tab.id, fields));
       section.appendChild(button);
     }
     contentEl.appendChild(section);
   }
 }
 
-async function fill(tabId, profile) {
+async function fill(tabId, fields) {
   try {
     const results = await chrome.scripting.executeScript({
       target: { tabId, allFrames: false },
       func: fillForm,
-      args: [profile.fields],
+      args: [fields],
     });
     const summary = results?.[0]?.result;
     if (!summary) {

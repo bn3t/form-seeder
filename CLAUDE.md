@@ -35,6 +35,10 @@ icons/                  16/48/128 action icons
   `{ok:true, config}` with values coerced to strings, or `{ok:false, errors}`
   with human-readable paths (`matcher 1 'X' › profile 'Y' › field 3: ...`).
   Changing the config shape means changing this function *and* the README.
+- `validateConfig()` keeps the config in **authored** form — `extends` and the
+  profile's own fields survive, so the options editor can round-trip it back to
+  YAML without flattening. `resolveProfileFields()` does the flattening, and is
+  called at fill time (popup) and to render inherited rows (options).
 - Page access is `activeTab` + `chrome.scripting.executeScript` only, triggered
   by the user clicking the action. There is no content script and no background
   service worker doing work.

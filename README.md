@@ -60,6 +60,7 @@ matchers:
 | `pageSelector` | rule | no | CSS selector that must exist in the DOM |
 | `profiles` | rule | yes | Non-empty list of data sets |
 | `name` | profile | yes | Non-empty button label |
+| `extends` | profile | no | Name of another profile *of the same rule* to inherit fields from |
 | `fields` | profile | yes | List of `{selector, value}` (may be empty) |
 | `selector` | field | yes | Any CSS selector valid for `querySelector` |
 | `value` | field | yes | Scalar — string, number or boolean, coerced to string |
@@ -67,6 +68,61 @@ matchers:
 
 Multiple rules may match the same page; the popup shows all of them, each with
 its own set of profile buttons.
+
+## Inheriting from another profile
+
+When several profiles are variants of the same base data — the same twenty
+fields, two of them different — a profile can `extends` another profile **of the
+same rule** and only spell out what differs:
+
+```yaml
+profiles:
+  - name: "Base employee"
+    fields:
+      - selector: "#firstName"
+        value: "Jean"
+      - selector: "#lastName"
+        value: "Dupont"
+      - selector: "#contractType"
+        value: "cdi"
+
+  - name: "Employee — student"
+    extends: "Base employee"
+    fields:
+      - selector: "#contractType"    # same selector → replaces the inherited field
+        value: "student"
+      - selector: "#schoolName"      # new selector → appended at the end
+        value: "HEC Liège"
+      - selector: "#lastName"        # value: null → drops the inherited field
+        value: null
+```
+
+Merge rules:
+
+- The parent's fields come first, then the child's are merged in.
+- A selector the parent already sets is **replaced in place** — the field keeps
+  the parent's position, so fill order is preserved. Replacement is per *field*,
+  not per key: a child that overrides a field without its own `waitMs` gets the
+  default, not the parent's.
+- A new selector is **appended** after the inherited ones.
+- `value: null` (or bare `value:`) is a **tombstone** — it drops the inherited
+  field instead of setting it. This only applies inside a profile that has
+  `extends`; anywhere else a null value still means the empty string.
+
+Chains are allowed (A extends B extends C). The target must be a profile of the
+same rule, named unambiguously, and the chain must not loop — `Validate` reports
+all four cases. Inheritance is deliberately rule-local, so a rule stays a
+self-contained block you can move between configs.
+
+A base profile is still an ordinary profile: it keeps its own button in the
+popup. If you don't want to fill it directly, just don't give it fields worth
+filling.
+
+In the form editor, `Extends` is a dropdown at the top of the profile card.
+Inherited fields are listed above the profile's own, greyed out and read-only,
+each with an **Override** button (copies it down so you can edit the value) and
+an **✕** (drops it — the tombstone). An own field that shadows an inherited one
+is tagged `override`, and its ✕ reverts to the inherited value.
 
 ## URL patterns
 
