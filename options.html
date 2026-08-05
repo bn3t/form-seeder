@@ -148,6 +148,16 @@
     }
     .field-row input.selector { flex: 2; font-family: monospace; }
     .field-row input.value { flex: 3; }
+    .field-row select.value {
+      flex: 3;
+      min-width: 0;
+      padding: 4px 6px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: #fff;
+      font-size: 13px;
+    }
+    .add-row { gap: 8px; }
     .field-row input.wait {
       flex: 0 0 auto;
       width: 60px;
@@ -297,6 +307,18 @@
         datetime-local <code>yyyy-mm-ddTHH:MM</code>. Wrong format leaves the field empty (browser behavior).</li>
       <li>Only the first element matching a selector is filled. Selectors that match nothing are
         skipped and reported after filling.</li>
+    </ul>
+    <h2>Actions (click / submit)</h2>
+    <ul>
+      <li><strong>+ Add action</strong> adds a row that <em>does</em> something instead of setting a
+        value: <code>▸ click</code> clicks the element, <code>↵ submit form</code> submits the form
+        the selector points at or sits in (validation and the page's own submit handler still run).</li>
+      <li>Actions are ordinary rows in the list, so they run <strong>in order</strong> with the
+        fields — put a click in the middle to open a tab or expand a panel, or last to submit.</li>
+      <li>There is no extra confirmation: clicking the profile button in the popup fills
+        <em>and</em> runs the actions. If a submit navigates away, the popup says so.</li>
+      <li><code>waitMs</code> works the same way — give a submit button its own budget if it only
+        becomes clickable once the form validates.</li>
     </ul>
   </div>
 

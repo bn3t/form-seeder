@@ -97,6 +97,15 @@ function newField() {
   return { selector: "", value: "" };
 }
 
+function newAction() {
+  return { selector: "", action: "click" };
+}
+
+/** Label for an action field, used wherever a value would be shown. */
+function actionLabel(field) {
+  return field.action === "submit" ? "↵ submit form" : "▸ click";
+}
+
 function stateToYaml() {
   // Omit an empty pageSelector so the optional key doesn't clutter the YAML.
   const clean = {
@@ -358,11 +367,14 @@ function renderDetail() {
       const row = document.createElement("div");
       row.className = "row field-row inherited";
       row.appendChild(readOnlyInput(field.selector, "selector"));
-      row.appendChild(readOnlyInput(field.value, "value"));
+      row.appendChild(readOnlyInput(
+        field.action === undefined ? field.value : actionLabel(field), "value"));
       row.appendChild(readOnlyInput(
         field.waitMs === undefined ? "" : String(field.waitMs), "wait"));
       row.appendChild(smallButton("Override", "", () => {
-        const copy = { selector: field.selector, value: field.value };
+        const copy = field.action === undefined
+          ? { selector: field.selector, value: field.value }
+          : { selector: field.selector, action: field.action };
         if (field.waitMs !== undefined) copy.waitMs = field.waitMs;
         profile.fields.push(copy);
         renderDetail();
@@ -395,9 +407,17 @@ function renderDetail() {
         return;
       }
 
-      const sel = textInput(field.selector, "#firstName", (v) => { field.selector = v; });
+      const isAction = field.action !== undefined;
+      const sel = textInput(
+        field.selector,
+        isAction ? "button[type=submit]" : "#firstName",
+        (v) => { field.selector = v; }
+      );
       sel.classList.add("selector");
-      const val = textInput(field.value, "Value", (v) => { field.value = v; });
+      // An action field takes a fixed choice where a value field takes text.
+      const val = isAction
+        ? actionSelect(field)
+        : textInput(field.value, "Value", (v) => { field.value = v; });
       val.classList.add("value");
       // Blank means "use the default" — keep the key out of the YAML entirely.
       const wait = textInput(
@@ -434,10 +454,17 @@ function renderDetail() {
       row.appendChild(remove);
       body.appendChild(row);
     });
-    body.appendChild(smallButton("+ Add field", "", () => {
+    const addRow = document.createElement("div");
+    addRow.className = "row add-row";
+    addRow.appendChild(smallButton("+ Add field", "", () => {
       profile.fields.push(newField());
       renderDetail();
     }));
+    addRow.appendChild(smallButton("+ Add action", "", () => {
+      profile.fields.push(newAction());
+      renderDetail();
+    }));
+    body.appendChild(addRow);
     pCard.appendChild(body);
 
     card.appendChild(pCard);
@@ -526,6 +553,27 @@ function extendsSelect(matcher, profile) {
     }
     renderDetail();
   });
+  return select;
+}
+
+/** What an action field does: click the element, or submit its form. */
+function actionSelect(field) {
+  const select = document.createElement("select");
+  select.className = "action-select";
+  select.title =
+    "click: a real click on the element. " +
+    "submit: submit the form the selector is in (validation still runs).";
+  [
+    ["click", "▸ click"],
+    ["submit", "↵ submit form"],
+  ].forEach(([value, label]) => {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    select.appendChild(option);
+  });
+  select.value = field.action;
+  select.addEventListener("change", () => { field.action = select.value; });
   return select;
 }
 

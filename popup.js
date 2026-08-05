@@ -2,10 +2,10 @@
 
 /**
  * Injected into the page. Self-contained: everything comes in via `fields`.
- * Returns { filled, skipped } summary.
+ * Returns { filled, clicked, skipped } summary.
  */
 async function fillForm(fields) {
-  const summary = { filled: 0, skipped: [] };
+  const summary = { filled: 0, clicked: 0, skipped: [] };
 
   // Fields are filled in order, and an earlier one can reveal a later one:
   // picking "worker" adds the commission paritaire input. The framework needs
@@ -97,7 +97,29 @@ async function fillForm(fields) {
   const checkedSetter =
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "checked")?.set;
 
-  for (const { selector, value, waitMs } of fields) {
+  /**
+   * `action: submit` — submit the form the selector points at (or belongs to).
+   * requestSubmit() rather than submit(), so validation and the page's own
+   * `submit` handler still run, exactly as a user's click would.
+   * Returns false if there is no form to submit.
+   */
+  function submitForm(element) {
+    if (element instanceof HTMLFormElement) {
+      element.requestSubmit();
+      return true;
+    }
+    const form = element.form || element.closest("form");
+    if (!form) return false;
+    // A submit button is passed as the submitter: its name/value is part of the
+    // submission, and some apps branch on which button was used.
+    const isSubmitter =
+      (element instanceof HTMLButtonElement || element instanceof HTMLInputElement) &&
+      element.type === "submit";
+    form.requestSubmit(isSubmitter ? element : undefined);
+    return true;
+  }
+
+  for (const { selector, value, action, waitMs } of fields) {
     let element;
     try {
       element = await waitForElement(selector, waitMs);
@@ -109,6 +131,23 @@ async function fillForm(fields) {
     if (!element) {
       console.warn("Form Seeder: no element matches selector", selector);
       summary.skipped.push(selector);
+      continue;
+    }
+
+    // An action field acts on the element instead of giving it a value. It is
+    // an ordinary step in the list, so a click that reveals more fields can sit
+    // in the middle of a profile, not only at the end.
+    if (action) {
+      if (action === "submit") {
+        if (!submitForm(element)) {
+          console.warn("Form Seeder: no form to submit for selector", selector);
+          summary.skipped.push(selector);
+          continue;
+        }
+      } else {
+        element.click();
+      }
+      summary.clicked++;
       continue;
     }
 
@@ -283,16 +322,28 @@ async function fill(tabId, fields) {
       showStatus("Fill script did not return a result.", true);
       return;
     }
+    let done = `${summary.filled} field(s) filled`;
+    if (summary.clicked > 0) done += `, ${summary.clicked} action(s) run`;
     if (summary.skipped.length > 0) {
       showStatus(
-        `${summary.filled} field(s) filled, ${summary.skipped.length} selector(s) not found: ` +
+        `${done}, ${summary.skipped.length} selector(s) not found: ` +
           summary.skipped.join(", "),
         true
       );
     } else {
-      showStatus(`${summary.filled} field(s) filled.`);
+      showStatus(done + ".");
     }
   } catch (e) {
+    // A submit that navigates tears down the frame the script is running in,
+    // so the result never comes back. That is a success, not a failure — but
+    // only read it that way for a profile that actually had an action to run.
+    if (
+      fields.some((f) => f.action) &&
+      /frame|context|destroyed|removed|navigat/i.test(e.message)
+    ) {
+      showStatus("Form filled — the page navigated away (submit went through).");
+      return;
+    }
     showStatus("Failed to inject fill script: " + e.message, true);
   }
 }

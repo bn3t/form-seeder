@@ -63,8 +63,11 @@ matchers:
 | `extends` | profile | no | Name of another profile *of the same rule* to inherit fields from |
 | `fields` | profile | yes | List of `{selector, value}` (may be empty) |
 | `selector` | field | yes | Any CSS selector valid for `querySelector` |
-| `value` | field | yes | Scalar — string, number or boolean, coerced to string |
+| `value` | field | yes* | Scalar — string, number or boolean, coerced to string |
+| `action` | field | yes* | `click` or `submit` — see "Clicking and submitting" |
 | `waitMs` | field | no | Poll budget for this selector, in ms (default 300, max 60000) |
+
+\* A field carries **either** `value` **or** `action`, never both.
 
 Multiple rules may match the same page; the popup shows all of them, each with
 its own set of profile buttons.
@@ -212,6 +215,49 @@ server round-trip, an animated dialog — give that one field its own budget wit
 `waitMs` is a whole number of milliseconds, 0 to 60000. In the form editor it is
 the narrow third box on the field row; leave it blank for the default. For a
 `mat-select` the same budget also covers the option panel opening.
+
+## Clicking and submitting
+
+A field can carry an `action` instead of a `value`. It is then an ordinary step
+in the same ordered list — it just *does* something to the element rather than
+giving it a value:
+
+```yaml
+- name: "New queue"
+  fields:
+    - selector: "#queue-name"
+      value: "test-queue"
+    - selector: "#queue-durable"
+      value: "true"
+    - selector: "form#queue-add button[type=submit]"
+      action: "click"
+```
+
+| `action` | What it does |
+| --- | --- |
+| `click` | A real `element.click()` — same as a user clicking it |
+| `submit` | Submits the form the selector points at, or the form it sits in, via `requestSubmit()` |
+
+`submit` is the one to reach for when there is no obvious button, or when the
+button is outside the form. It goes through `requestSubmit()`, so constraint
+validation and the page's own `submit` handler still run — unlike `form.submit()`,
+which bypasses both. A submit button given as the selector is passed along as the
+*submitter*, so its `name`/`value` reaches the server and apps that branch on
+which button was used still work. If the selector resolves to no form at all, the
+step is reported as skipped.
+
+Because actions live in the field list, they run **in order** with the fields:
+a click in the middle can open a tab or expand a panel that later selectors need,
+not just submit at the end. `waitMs` applies as usual — useful for a submit
+button that only becomes clickable once the form validates.
+
+There is no separate confirmation: clicking a profile button fills *and* runs the
+profile's actions. The popup summary counts them separately
+("6 field(s) filled, 1 action(s) run"), and if the submit navigates the page
+away the popup reports that instead of an injection error.
+
+In the form editor, **+ Add action** adds such a row; the value box is replaced
+by a click/submit dropdown.
 
 ## Validating and sharing rules
 
