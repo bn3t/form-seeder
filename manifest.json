@@ -3,6 +3,8 @@
   "name": "Form Seeder",
   "version": "1.0.0",
   "description": "Fill web forms with named test data sets, mapped via CSS selectors and URL glob patterns (YAML config).",
+  "homepage_url": "https://github.com/bn3t/form-seeder",
+  "minimum_chrome_version": "92",
   "permissions": ["storage", "scripting", "activeTab"],
   "action": {
     "default_popup": "popup.html",

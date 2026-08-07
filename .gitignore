@@ -12,6 +12,7 @@ Thumbs.db
 node_modules/
 
 # Packaged extension / local exports
+dist/
 *.zip
 *.crx
 *.pem
